@@ -1,25 +1,58 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict
 
 
-class BoundingBox(BaseModel):
+class HealthResponse(BaseModel):
     """
-    Represents a detected face.
+    Response model for the root endpoint.
     """
 
-    x: int = Field(..., description="Top-left x coordinate")
-    y: int = Field(..., description="Top-left y coordinate")
-    width: int = Field(..., description="Bounding box width")
-    height: int = Field(..., description="Bounding box height")
+    status: str
+    message: str
 
 
 class DetectionResponse(BaseModel):
     """
-    API response for face detection.
+    Response model for image/video detection.
     """
 
-    total_faces: int = Field(
-        ...,
-        description="Number of detected faces",
+    filename: str
+    faces_detected: int
+    output_path: str
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "filename": "person.jpg",
+                "faces_detected": 3,
+                "output_path": "outputs/image/person.jpg",
+            }
+        }
     )
 
-    faces: list[BoundingBox]
+
+class WebcamResponse(BaseModel):
+    """
+    Response model for webcam detection.
+    """
+
+    status: str
+    message: str
+    output_directory: str
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "status": "success",
+                "message": "Webcam detection completed.",
+                "output_directory": "outputs/webcam/",
+            }
+        }
+    )
+
+
+class ErrorResponse(BaseModel):
+    """
+    Standard error response.
+    """
+
+    detail: str

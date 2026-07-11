@@ -1,4 +1,3 @@
-from pathlib import Path
 import shutil
 
 from fastapi import (
@@ -15,31 +14,19 @@ from app.schemas import (
     WebcamResponse,
 )
 
-from src.inference import FaceInference
-from src.utils import (
-    ensure_directory,
-    is_image_file,
-    is_video_file,
-)
-
 from src.config import (
     IMAGE_INPUT_DIR,
     VIDEO_INPUT_DIR,
     IMAGE_OUTPUT_DIR,
     VIDEO_OUTPUT_DIR,
-    WEBCAM_OUTPUT_DIR
+    WEBCAM_OUTPUT_DIR,
 )
 
-
-for directory in (
-    IMAGE_INPUT_DIR,
-    VIDEO_INPUT_DIR,
-    IMAGE_OUTPUT_DIR,
-    VIDEO_OUTPUT_DIR,
-    WEBCAM_OUTPUT_DIR,
-):
-    ensure_directory(directory)
-
+from src.inference import FaceInference
+from src.utils import (
+    is_image_file,
+    is_video_file,
+)
 
 app = FastAPI(
     title="Face Detection API",
@@ -47,7 +34,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
-detector = FaceInference()
+pipeline = FaceInference()
 
 
 @app.get(
@@ -56,10 +43,6 @@ detector = FaceInference()
     status_code=status.HTTP_200_OK,
 )
 async def home():
-    """
-    Health check endpoint.
-    """
-
     return HealthResponse(
         status="success",
         message="Face Detection API is running."
@@ -73,10 +56,6 @@ async def home():
 async def detect_image(
     file: UploadFile = File(...)
 ):
-    """
-    Detect faces in an uploaded image.
-    """
-
     if not is_image_file(file.filename):
         raise HTTPException(
             status_code=400,
@@ -85,10 +64,10 @@ async def detect_image(
 
     image_path = IMAGE_INPUT_DIR / file.filename
 
-    with image_path.open("wb") as buffer:
+    with open(image_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    faces = detector.detect_image(
+    faces = pipeline.detect_image(
         image_path=image_path,
         save=True,
         show=False,
@@ -110,10 +89,6 @@ async def detect_image(
 async def detect_video(
     file: UploadFile = File(...)
 ):
-    """
-    Detect faces in uploaded video.
-    """
-
     if not is_video_file(file.filename):
         raise HTTPException(
             status_code=400,
@@ -122,10 +97,10 @@ async def detect_video(
 
     video_path = VIDEO_INPUT_DIR / file.filename
 
-    with video_path.open("wb") as buffer:
+    with open(video_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    detector.run_video(video_path)
+    pipeline.run_video(video_path)
 
     return DetectionResponse(
         filename=file.filename,
@@ -141,11 +116,8 @@ async def detect_video(
     response_model=WebcamResponse,
 )
 async def detect_webcam():
-    """
-    Start webcam face detection.
-    """
 
-    detector.run_webcam()
+    pipeline.run_webcam()
 
     return WebcamResponse(
         status="success",

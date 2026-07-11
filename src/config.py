@@ -6,6 +6,13 @@ IMAGE_DIR = ROOT_DIR / "images"
 OUTPUT_DIR = ROOT_DIR / "outputs"
 CHECKPOINT_DIR = ROOT_DIR / "checkpoints"
 
+IMAGE_INPUT_DIR = IMAGE_DIR / "input"
+VIDEO_INPUT_DIR = IMAGE_DIR / "video"
+
+IMAGE_OUTPUT_DIR = OUTPUT_DIR / "image"
+VIDEO_OUTPUT_DIR = OUTPUT_DIR / "output"
+WEBCAM_OUTPUT_DIR = OUTPUT_DIR / "webcam"
+
 HAAR_MODEL = CHECKPOINT_DIR / "haarcascade_frontalface_default.xml"
 YOLO_MODEL = CHECKPOINT_DIR / "yolov8n.pt"
 

@@ -1,104 +1,156 @@
 from pathlib import Path
 import shutil
-import tempfile
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import (
+    FastAPI,
+    File,
+    HTTPException,
+    UploadFile,
+    status,
+)
 
 from app.schemas import (
-    BoundingBox,
     DetectionResponse,
+    HealthResponse,
+    WebcamResponse,
 )
-from src.draw import draw_multiple_faces
-from src.detector import FaceDetector
+
+from src.inference import FaceInference
 from src.utils import (
+    ensure_directory,
     is_image_file,
-    load_image,
-    save_image
+    is_video_file,
 )
+
+from src.config import (
+    IMAGE_INPUT_DIR,
+    VIDEO_INPUT_DIR,
+    IMAGE_OUTPUT_DIR,
+    VIDEO_OUTPUT_DIR,
+    WEBCAM_OUTPUT_DIR
+)
+
+
+for directory in (
+    IMAGE_INPUT_DIR,
+    VIDEO_INPUT_DIR,
+    IMAGE_OUTPUT_DIR,
+    VIDEO_OUTPUT_DIR,
+    WEBCAM_OUTPUT_DIR,
+):
+    ensure_directory(directory)
+
 
 app = FastAPI(
     title="Face Detection API",
-    description="Detect human faces using OpenCV Haar Cascade.",
+    description="Face Detection using OpenCV Haar Cascade",
     version="1.0.0",
 )
 
-detector = FaceDetector()
+detector = FaceInference()
 
 
-@app.get("/")
-def root():
+@app.get(
+    "/",
+    response_model=HealthResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def home():
     """
     Health check endpoint.
     """
 
-    return {
-        "message": "Face Detection API is running."
-    }
+    return HealthResponse(
+        status="success",
+        message="Face Detection API is running."
+    )
 
 
 @app.post(
-    "/detect",
+    "/detect/image",
     response_model=DetectionResponse,
 )
-async def detect_faces(
-    file: UploadFile = File(...),
+async def detect_image(
+    file: UploadFile = File(...)
 ):
     """
-    Upload an image and detect faces.
+    Detect faces in an uploaded image.
     """
 
     if not is_image_file(file.filename):
         raise HTTPException(
             status_code=400,
-            detail="Unsupported image format.",
+            detail="Unsupported image format."
         )
 
-    suffix = Path(file.filename).suffix
+    image_path = IMAGE_INPUT_DIR / file.filename
 
-    with tempfile.NamedTemporaryFile(
-        delete=False,
-        suffix=suffix,
-    ) as temp:
+    with image_path.open("wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
 
-        shutil.copyfileobj(
-            file.file,
-            temp,
+    faces = detector.detect_image(
+        image_path=image_path,
+        save=True,
+        show=False,
+    )
+
+    return DetectionResponse(
+        filename=file.filename,
+        faces_detected=len(faces),
+        output_path=str(
+            IMAGE_OUTPUT_DIR / file.filename
+        ),
+    )
+
+
+@app.post(
+    "/detect/video",
+    response_model=DetectionResponse,
+)
+async def detect_video(
+    file: UploadFile = File(...)
+):
+    """
+    Detect faces in uploaded video.
+    """
+
+    if not is_video_file(file.filename):
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported video format."
         )
 
-        temp_path = Path(temp.name)
+    video_path = VIDEO_INPUT_DIR / file.filename
 
-    try:
+    with video_path.open("wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
 
-        image = load_image(temp_path)
+    detector.run_video(video_path)
 
-        faces = detector.detect(image)
+    return DetectionResponse(
+        filename=file.filename,
+        faces_detected=0,
+        output_path=str(
+            VIDEO_OUTPUT_DIR / file.filename
+        ),
+    )
 
-        # Draw bounding boxes
-        draw_multiple_faces(image, faces)
 
-        # Save processed image
-        output_path = save_image(
-            image,
-            f"detected_{file.filename}"
-        )
+@app.post(
+    "/detect/webcam",
+    response_model=WebcamResponse,
+)
+async def detect_webcam():
+    """
+    Start webcam face detection.
+    """
 
-        results = [
-            BoundingBox(
-                x=x,
-                y=y,
-                width=w,
-                height=h,
-            )
-            for x, y, w, h in faces
-        ]
+    detector.run_webcam()
 
-        return {
-            "total_faces": len(results),
-            "faces": results,
-            "saved_image": str(output_path)
-        }
-
-    finally:
-
-        if temp_path.exists():
-            temp_path.unlink()
+    return WebcamResponse(
+        status="success",
+        message="Webcam detection completed.",
+        output_directory=str(
+            WEBCAM_OUTPUT_DIR
+        ),
+    )
